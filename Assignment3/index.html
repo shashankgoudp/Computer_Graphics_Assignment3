@@ -1,0 +1,2062 @@
+<html>
+
+<head>
+<title>Assignment3 &mdash; Spulima</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="js/gl-matrix.js"></script>
+<script type="text/javascript" src="js/webgl-utils.js"></script>
+
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;
+
+    varying vec2 vTextureCoord;
+	uniform sampler2D uSampler;
+	uniform int colorflag1;
+	vec4 flag_color = vec4(1,1,1,1);
+	varying vec3 vColor;
+
+    void main(void) {
+	
+		if(colorflag1 == 0)
+		{
+		vec4 texColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+		gl_FragColor = texColor*vec4(vColor,1.0);
+		}
+		
+		else{
+			gl_FragColor = vec4(vColor,1.0);
+		
+		}
+    }
+</script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+	attribute vec3 aVertexPosition_Cube;
+	attribute vec3 aVertex_NormalPosition;
+    attribute vec2 aTextureCoord;
+	attribute vec3 aVertex_KdPosition;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+	uniform mat3 NMatrix;
+	uniform int colorflag;
+
+    varying vec2 vTextureCoord;
+	vec3 Light = vec3(0.0,5.0,0.0);
+	vec3 eye = vec3(0.0,0.0,2.0);
+	vec3 Ka = vec3(1.0,1.0,1.0);
+	vec3 Ks = vec3(1.0,1.0,1.0);
+	vec3 Kd = vec3(0.5,0.5,0.5);
+	
+	vec3 La = vec3(1.0,1.0,1.0);
+	vec3 Ls = vec3(1.0,1.0,1.0);
+	vec3 Ld = vec3(1.0,1.0,1.0);
+	varying vec3 vColor;
+
+    void main(void) {
+		
+	
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+		if(colorflag == 0)
+		{
+		vec3 eye_vector = normalize(eye - gl_Position.xyz);
+		vec3 Light_vector = normalize(Light - gl_Position.xyz);
+		vec3 N = normalize(aVertex_NormalPosition);
+		float LN = dot(Light_vector,N);
+		float NH = dot(N,normalize(Light_vector+eye_vector));
+		
+		vec3 Color = (Ka*La)+(aVertex_KdPosition*Ld*LN)+(Ks*Ls*pow(NH,10.0));
+        vTextureCoord = aTextureCoord;
+		vColor = Color;
+		}
+		
+		else{
+		
+			vColor=vec3(1.0,0.0,0.0);
+		
+		}
+		
+			
+		
+    }
+</script>
+
+
+<script type="text/javascript">
+
+    var gl;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("experimental-webgl");
+            gl.viewportWidth = canvas.width;
+            gl.viewportHeight = canvas.height;
+        } catch (e) {
+        }
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+    }
+
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+
+    var shaderProgram;
+
+    function initShaders() {
+        var fragmentShader = getShader(gl, "shader-fs");
+        var vertexShader = getShader(gl, "shader-vs");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+		
+		shaderProgram.Cubevertexpositiontext = gl.getAttribLocation(shaderProgram, "aVertexPosition_Cube");
+        gl.enableVertexAttribArray(shaderProgram.Cubevertexpositiontext);
+		
+		shaderProgram.vertexNormalPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertex_NormalPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexNormalPositionAttribute);
+		
+		shaderProgram.vertex_KdAttribute = gl.getAttribLocation(shaderProgram, "aVertex_KdPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertex_KdAttribute);
+
+        shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+        gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
+		shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+		
+		shaderProgram.NMatrixUniform = gl.getUniformLocation(shaderProgram, "NMatrix");
+		
+		
+    }
+
+
+    var mvMatrix = mat4.create();
+    var mvMatrixStack = [];
+    var pMatrix = mat4.create();
+	var nMatrix = mat4.create();
+
+    function mvPushMatrix() {
+        var copy = mat4.create();
+        mat4.copy(copy,mvMatrix);
+        mvMatrixStack.push(copy);
+    }
+
+    function mvPopMatrix() {
+        if (mvMatrixStack.length == 0) {
+            throw "Invalid popMatrix!";
+        }
+        mvMatrix = mvMatrixStack.pop();
+    }
+
+
+    function setMatrixUniforms() {
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+		gl.uniformMatrix4fv(shaderProgram.NMatrixUniform, false, nMatrix);
+    }
+
+
+    function degToRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
+
+
+    var pyramidVertexPositionBuffer;
+    var pyramidVertexColorBuffer;
+    var cubeVertexPositionBuffer;
+    var cubeVertexColorBuffer;
+    var cubeVertexIndexBuffer;
+	var cubeVertexTextureCoordBuffer;
+	
+	var cubeVertexPositionBuffer2;
+    var cubeVertexColorBuffer2;
+    var cubeVertexIndexBuffer2;
+	var cubeVertexTextureCoordBuffer2;
+	
+	
+	var cubeVertexPositionBuffer3;
+    var cubeVertexColorBuffer3;
+    var cubeVertexIndexBuffer3;
+	var cubeVertexTextureCoordBuffer3;
+	var vertexBuffer_cube;
+	
+	function readHierarchyFile(file)
+	{
+	
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+		
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+               
+				localStorage.setItem('HierarchyText',allText);
+			
+            }
+        }
+    }
+    rawFile.send(null);
+	}
+	
+	
+	function readTextFile(file)
+	{
+	console.log(file);
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+		
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+               
+				localStorage.setItem('alText',allText);
+			
+            }
+        }
+    }
+    rawFile.send(null);
+	}
+	
+	
+	
+	function readTextFile2(file)
+	{
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+		
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+              
+				localStorage.setItem('alText2',allText);
+			
+            }
+        }
+    }
+    rawFile.send(null);
+	}
+	
+	
+	
+	
+	function readTextFile3(file)
+	{
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+		
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+               
+				localStorage.setItem('alText3',allText);
+			
+            }
+        }
+    }
+    rawFile.send(null);
+	}
+ //source---http://stackoverflow.com/questions/14446447/javascript-read-local-text-file
+ 
+  var crateTextures;
+  
+
+    function initTexture() {
+        var crateImage = new Image();
+
+    
+            var texture = gl.createTexture();
+            texture.image = crateImage;
+            crateTextures = texture;
+       
+
+        crateImage.onload = function () {
+            handleLoadedTexture(crateTextures)
+        }
+     
+	  crateImage.src = localStorage.getItem('texture_file');
+	
+    }
+	
+	var crateTextures2;
+	
+	 function initTexture2() {
+        var crateImage2 = new Image();
+
+    
+            var texture2 = gl.createTexture();
+            texture2.image = crateImage2;
+            crateTextures2 = texture2;
+ 
+
+        crateImage2.onload = function () {
+            handleLoadedTexture2(crateTextures2)
+        }
+     
+	  crateImage2.src = localStorage.getItem('texture_file2');
+	 	
+    }
+	
+	var crateTextures3;
+	
+	function initTexture3() {
+        var crateImage3 = new Image();
+
+    
+            var texture3 = gl.createTexture();
+            texture3.image = crateImage3;
+            crateTextures3 = texture3;
+ 
+
+        crateImage3.onload = function () {
+            handleLoadedTexture2(crateTextures3)
+        }
+     
+	  crateImage3.src = localStorage.getItem('texture_file3');
+	 
+	
+    }
+	
+	function readMTLFile(file)
+	{
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+		
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+        		localStorage.setItem('MTLText',allText);
+		
+            }
+        }
+    }
+    rawFile.send(null);
+	}
+	
+	function readMTLFile2(file)
+	{
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+		
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+               
+				localStorage.setItem('MTLText2',allText);
+			
+            }
+        }
+    }
+    rawFile.send(null);
+	}
+	
+	
+	
+	function readMTLFile3(file)
+	{
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+		
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                var allText = rawFile.responseText;
+               
+				localStorage.setItem('MTLText3',allText);
+			
+            }
+        }
+    }
+    rawFile.send(null);
+	}
+	
+    function handleLoadedTexture(crateTextures) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        gl.bindTexture(gl.TEXTURE_2D, crateTextures);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,crateTextures.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+	
+	    function handleLoadedTexture2(crateTextures) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        gl.bindTexture(gl.TEXTURE_2D, crateTextures);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,crateTextures.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+	
+	
+	
+	    function handleLoadedTexture3(crateTextures) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        gl.bindTexture(gl.TEXTURE_2D, crateTextures);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,crateTextures.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+
+		var head_max_x=Number.MIN_VALUE;
+		var head_min_x=Number.MAX_VALUE;
+		
+		var head_max_y=Number.MIN_VALUE;
+		var head_min_y=Number.MAX_VALUE;
+		
+		
+		var head_max_z=Number.MIN_VALUE;
+		var head_min_z=Number.MAX_VALUE;
+	
+		
+     function initBuffers() {
+		
+		
+        pyramidVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexPositionBuffer);
+		
+		var splitText = localStorage.getItem('alText')
+		
+		var lineText = splitText.split('\n');
+		
+		var splitText_mtl = localStorage.getItem('MTLText')
+	
+		var lineText_mtl = splitText_mtl.split('\n');
+		
+		
+	
+		var index_v;
+		var vertices1=[];
+		var faces1=[];
+		var vertexcount = 0;
+		var facecount = 0;
+		var final_vertices = [];
+		var colors = [];
+		var vertices_texture =[];
+		var faces_texture = [];
+		var final_vertices_texture = [];
+		var vertices_normals = [];
+		var faces_normals = [];
+		var final_vertices_normals = [];
+		var kd_val = [];
+		var Kd_val_count = 0;
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == " ")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				if(parseFloat(parsed_vertex[2])>head_max_x)
+				{
+					head_max_x = parseFloat(parsed_vertex[2]);
+				}
+				if(parseFloat(parsed_vertex[2])<head_min_x)
+				{
+					head_min_x = parseFloat(parsed_vertex[2]);
+				}
+				vertices1.push(parsed_vertex[2]);
+				if(parseFloat(parsed_vertex[3])>head_max_y)
+				{
+					
+					head_max_y = parseFloat(parsed_vertex[3]);
+				}
+				if(parseFloat(parsed_vertex[3])<head_min_y)
+				{
+					head_min_y = parseFloat(parsed_vertex[3]);
+				}
+				vertices1.push(parsed_vertex[3]);
+				if(parseFloat(parsed_vertex[4])>head_max_z)
+				{
+					head_max_z = parseFloat(parsed_vertex[4]);
+				}
+				if(parseFloat(parsed_vertex[4])<head_min_z)
+				{
+					head_min_z = parseFloat(parsed_vertex[4]);
+				}
+				vertices1.push(parsed_vertex[4]);
+				vertexcount++;
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				facecount++;
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces1.push(slash_split[0]-1);
+				}
+			}
+		
+		}
+		
+		
+		
+		var flag ;
+		for(var i =0;i<faces1.length;i++)
+		{
+			
+			if((faces1[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces1[i];
+			}
+			final_vertices.push(vertices1[(flag*3)+0]);
+			final_vertices.push(vertices1[(flag*3)+1]);
+			final_vertices.push(vertices1[(flag*3)+2]);
+		}
+        
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == "t")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				vertices_texture.push(parsed_vertex[1]);
+				vertices_texture.push(parsed_vertex[2]);
+				vertices_texture.push(parsed_vertex[3]);
+				
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces_texture.push(slash_split[1]-1);
+				}
+			}
+		
+		}
+		
+		
+		for(var i =0;i<faces_texture.length;i++)
+		{
+			
+			if((faces_texture[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces_texture[i];
+			}
+			final_vertices_texture.push(vertices_texture[(flag*3)+0]);
+			final_vertices_texture.push(vertices_texture[(flag*3)+1]);
+			
+		}
+		
+		
+		
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices), gl.STATIC_DRAW);
+        pyramidVertexPositionBuffer.itemSize = 3;
+        pyramidVertexPositionBuffer.numItems = facecount*3;
+
+        cubeVertexTextureCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexTextureCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices_texture), gl.STATIC_DRAW);
+        cubeVertexTextureCoordBuffer.itemSize = 2;
+        cubeVertexTextureCoordBuffer.numItems = facecount*3;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+		
+		pyramidVertexNormalPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexNormalPositionBuffer);
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == "n")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				vertices_normals.push(parsed_vertex[1]);
+				vertices_normals.push(parsed_vertex[2]);
+				vertices_normals.push(parsed_vertex[3]);
+			}
+		
+		}
+		
+				
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces_normals.push(slash_split[2]-1);
+				}
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<faces_normals.length;i++)
+		{
+			if((faces_normals[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces_normals[i];
+			}
+			final_vertices_normals.push(vertices_normals[(flag*3)+0]);
+			final_vertices_normals.push(vertices_normals[(flag*3)+1]);
+			final_vertices_normals.push(vertices_normals[(flag*3)+2]);
+		}
+		
+		
+		
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices_normals), gl.STATIC_DRAW);
+        pyramidVertexNormalPositionBuffer.itemSize = 3;
+        pyramidVertexNormalPositionBuffer.numItems = vertexcount;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+	
+		pyramidVertex_Kd_PositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertex_Kd_PositionBuffer);
+		
+		var temp_store1;
+		var temp_store2;
+		var temp_store3;
+		
+		for(var i =0;i<lineText_mtl.length;i++)
+		{
+			var line_content = lineText_mtl[i][1];
+			if( line_content == 'K' && lineText_mtl[i][2] =='d')
+			{
+				var parsed_vertex=lineText_mtl[i].split(" ");
+				temp_store1= parsed_vertex[1];
+				temp_store2= parsed_vertex[2];
+				temp_store3= parsed_vertex[3];
+				Kd_val_count++;
+				
+			}
+		
+		}
+		
+		console.log(temp_store1);
+		console.log(temp_store2);
+		console.log(temp_store3);
+		
+		for(var i =0;i<facecount*3;i++)
+		{
+			kd_val.push(temp_store1);
+			kd_val.push(temp_store2);
+			kd_val.push(temp_store3);
+		
+		}
+		
+		console.log(kd_val);
+		console.log(Kd_val_count);
+		
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(kd_val), gl.STATIC_DRAW);
+        pyramidVertex_Kd_PositionBuffer.itemSize = 3;
+        pyramidVertex_Kd_PositionBuffer.numItems = facecount*3;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+	
+	     
+    }
+		
+		
+	//-----------------------------------------------------------------
+	
+		var rabbit_max_x=Number.MIN_VALUE;
+		var rabbit_min_x=Number.MAX_VALUE;
+		
+		var rabbit_max_y=Number.MIN_VALUE;
+		var rabbit_min_y=Number.MAX_VALUE;
+		
+		
+		var rabbit_max_z=Number.MIN_VALUE;
+		var rabbit_min_z=Number.MAX_VALUE;
+		function initBuffers2() {
+        pyramidVertexPositionBuffer2 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexPositionBuffer2);
+		
+		var splitText = localStorage.getItem('alText2')
+		
+		var lineText = splitText.split('\n');
+		
+		var splitText_mtl = localStorage.getItem('MTLText2')
+	
+		var lineText_mtl = splitText_mtl.split('\n');
+		
+	
+	
+		var index_v;
+		var vertices1=[];
+		var faces1=[];
+		var vertexcount = 0;
+		var facecount = 0;
+		var final_vertices = [];
+		var colors = [];
+		var vertices_texture =[];
+		var faces_texture = [];
+		var final_vertices_texture = [];
+		var vertices_normals = [];
+		var faces_normals = [];
+		var final_vertices_normals = [];
+		var kd_val = [];
+		var Kd_val_count = 0;
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == " ")
+			{
+								var parsed_vertex=lineText[i].split(" ");
+				if(parseFloat(parsed_vertex[2])>rabbit_max_x)
+				{
+					rabbit_max_x = parseFloat(parsed_vertex[2]);
+				}
+				if(parseFloat(parsed_vertex[2])<rabbit_min_x)
+				{
+					rabbit_min_x = parseFloat(parsed_vertex[2]);
+				}
+				vertices1.push(parsed_vertex[2]);
+				if(parseFloat(parsed_vertex[3])>rabbit_max_y)
+				{
+					
+					rabbit_max_y = parseFloat(parsed_vertex[3]);
+				}
+				if(parseFloat(parsed_vertex[3])<rabbit_min_y)
+				{
+					rabbit_min_y = parseFloat(parsed_vertex[3]);
+				}
+				vertices1.push(parsed_vertex[3]);
+				if(parseFloat(parsed_vertex[4])>rabbit_max_z)
+				{
+					rabbit_max_z = parseFloat(parsed_vertex[4]);
+				}
+				if(parseFloat(parsed_vertex[4])<rabbit_min_z)
+				{
+					rabbit_min_z = parseFloat(parsed_vertex[4]);
+				}
+				vertices1.push(parsed_vertex[4]);
+				vertexcount++;
+			}
+		
+		}
+		
+		
+		
+		console.log(vertexcount);
+		console.log(vertices1.length);
+		console.log(vertices1);
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				facecount++;
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces1.push(slash_split[0]-1);
+				}
+			}
+		
+		}
+		
+		console.log(faces1);
+		
+		var flag ;
+		for(var i =0;i<faces1.length;i++)
+		{
+			
+			if((faces1[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces1[i];
+			}
+			final_vertices.push(vertices1[(flag*3)+0]);
+			final_vertices.push(vertices1[(flag*3)+1]);
+			final_vertices.push(vertices1[(flag*3)+2]);
+		}
+        
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == "t")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				vertices_texture.push(parsed_vertex[1]);
+				vertices_texture.push(parsed_vertex[2]);
+				vertices_texture.push(parsed_vertex[3]);
+				
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces_texture.push(slash_split[1]-1);
+				}
+			}
+		
+		}
+		
+		
+		for(var i =0;i<faces_texture.length;i++)
+		{
+			
+			if((faces_texture[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces_texture[i];
+			}
+			final_vertices_texture.push(vertices_texture[(flag*3)+0]);
+			final_vertices_texture.push(vertices_texture[(flag*3)+1]);
+			
+		}
+		
+		
+		
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices), gl.STATIC_DRAW);
+        pyramidVertexPositionBuffer2.itemSize = 3;
+        pyramidVertexPositionBuffer2.numItems = facecount*3;
+
+        cubeVertexTextureCoordBuffer2 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexTextureCoordBuffer2);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices_texture), gl.STATIC_DRAW);
+        cubeVertexTextureCoordBuffer2.itemSize = 2;
+        cubeVertexTextureCoordBuffer2.numItems = facecount*3;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+		
+		pyramidVertexNormalPositionBuffer2 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexNormalPositionBuffer2);
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == "n")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				vertices_normals.push(parsed_vertex[1]);
+				vertices_normals.push(parsed_vertex[2]);
+				vertices_normals.push(parsed_vertex[3]);
+			}
+		
+		}
+		
+				
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				//facecount++;
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces_normals.push(slash_split[2]-1);
+				}
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<faces_normals.length;i++)
+		{
+			if((faces_normals[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces_normals[i];
+			}
+			final_vertices_normals.push(vertices_normals[(flag*3)+0]);
+			final_vertices_normals.push(vertices_normals[(flag*3)+1]);
+			final_vertices_normals.push(vertices_normals[(flag*3)+2]);
+		}
+		
+		
+		
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices_normals), gl.STATIC_DRAW);
+        pyramidVertexNormalPositionBuffer2.itemSize = 3;
+        pyramidVertexNormalPositionBuffer2.numItems = vertexcount;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+	
+		pyramidVertex_Kd_PositionBuffer2 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertex_Kd_PositionBuffer2);
+		
+		var temp_store1;
+		var temp_store2;
+		var temp_store3;
+		
+		for(var i =0;i<lineText_mtl.length;i++)
+		{
+			var line_content = lineText_mtl[i][1];
+			if( line_content == 'K' && lineText_mtl[i][2] =='d')
+			{
+				var parsed_vertex=lineText_mtl[i].split(" ");
+				temp_store1= parsed_vertex[1];
+				temp_store2= parsed_vertex[2];
+				temp_store3= parsed_vertex[3];
+				Kd_val_count++;
+				
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<facecount*3;i++)
+		{
+			kd_val.push(temp_store1);
+			kd_val.push(temp_store2);
+			kd_val.push(temp_store3);
+		
+		}
+		
+		console.log(kd_val);
+		console.log(Kd_val_count);
+		
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(kd_val), gl.STATIC_DRAW);
+        pyramidVertex_Kd_PositionBuffer2.itemSize = 3;
+        pyramidVertex_Kd_PositionBuffer2.numItems = facecount*3;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+	
+	     
+    }
+	     
+    
+	//------------------------------------------------------------------------------------------------
+	//------------------------------------------------------------------------------------------------
+	
+		
+		
+		var cap_max_x=Number.MIN_VALUE;
+		var cap_min_x=Number.MAX_VALUE;
+		
+		var cap_max_y=Number.MIN_VALUE;
+		var cap_min_y=Number.MAX_VALUE;
+		
+		var cap_max_z=Number.MIN_VALUE;
+		var cap_min_z=Number.MAX_VALUE;
+	function initBuffers3() {
+        pyramidVertexPositionBuffer3 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexPositionBuffer3);
+		
+		var splitText = localStorage.getItem('alText3')
+		
+		var lineText = splitText.split('\n');
+		
+		var splitText_mtl = localStorage.getItem('MTLText3')
+	
+		var lineText_mtl = splitText_mtl.split('\n');
+		
+	
+	
+		var index_v;
+		var vertices1=[];
+		var faces1=[];
+		var vertexcount = 0;
+		var facecount = 0;
+		var final_vertices = [];
+		var colors = [];
+		var vertices_texture =[];
+		var faces_texture = [];
+		var final_vertices_texture = [];
+		var vertices_normals = [];
+		var faces_normals = [];
+		var final_vertices_normals = [];
+		var kd_val = [];
+		var Kd_val_count = 0;
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == " ")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				if(parseFloat(parsed_vertex[2])>cap_max_x)
+				{
+					cap_max_x = parseFloat(parsed_vertex[2]);
+				}
+				if(parseFloat(parsed_vertex[2])<cap_min_x)
+				{
+					cap_min_x = parseFloat(parsed_vertex[2]);
+				}
+				vertices1.push(parsed_vertex[2]);
+				if(parseFloat(parsed_vertex[3])>cap_max_y)
+				{
+					
+					cap_max_y = parseFloat(parsed_vertex[3]);
+				}
+				if(parseFloat(parsed_vertex[3])<cap_min_y)
+				{
+					cap_min_y = parseFloat(parsed_vertex[3]);
+				}
+				vertices1.push(parsed_vertex[3]);
+				if(parseFloat(parsed_vertex[4])>cap_max_z)
+				{
+					cap_max_z = parseFloat(parsed_vertex[4]);
+				}
+				if(parseFloat(parsed_vertex[4])<cap_min_z)
+				{
+					cap_min_z = parseFloat(parsed_vertex[4]);
+				}
+				vertices1.push(parsed_vertex[4]);
+				vertexcount++;
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				facecount++;
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces1.push(slash_split[0]-1);
+				}
+			}
+		
+		}
+		
+		
+		
+		var flag ;
+		for(var i =0;i<faces1.length;i++)
+		{
+			
+			if((faces1[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces1[i];
+			}
+			final_vertices.push(vertices1[(flag*3)+0]);
+			final_vertices.push(vertices1[(flag*3)+1]);
+			final_vertices.push(vertices1[(flag*3)+2]);
+		}
+        
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == "t")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				vertices_texture.push(parsed_vertex[1]);
+				vertices_texture.push(parsed_vertex[2]);
+				vertices_texture.push(parsed_vertex[3]);
+				
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+			
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces_texture.push(slash_split[1]-1);
+				}
+			}
+		
+		}
+		
+		
+		for(var i =0;i<faces_texture.length;i++)
+		{
+			
+			if((faces_texture[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces_texture[i];
+			}
+			final_vertices_texture.push(vertices_texture[(flag*3)+0]);
+			final_vertices_texture.push(vertices_texture[(flag*3)+1]);
+			
+		}
+		
+		
+		
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices), gl.STATIC_DRAW);
+        pyramidVertexPositionBuffer3.itemSize = 3;
+        pyramidVertexPositionBuffer3.numItems = facecount*3;
+
+        cubeVertexTextureCoordBuffer3 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexTextureCoordBuffer3);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices_texture), gl.STATIC_DRAW);
+        cubeVertexTextureCoordBuffer3.itemSize = 2;
+        cubeVertexTextureCoordBuffer3.numItems = facecount*3;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+		
+		pyramidVertexNormalPositionBuffer3 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexNormalPositionBuffer3);
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'v' && lineText[i][1] == "n")
+			{
+				var parsed_vertex=lineText[i].split(" ");
+				vertices_normals.push(parsed_vertex[1]);
+				vertices_normals.push(parsed_vertex[2]);
+				vertices_normals.push(parsed_vertex[3]);
+			}
+		
+		}
+		
+				
+		
+		
+		
+		for(var i =0;i<lineText.length;i++)
+		{
+			if(lineText[i][0] == 'f')
+			{
+				
+				var parsed_vertex=lineText[i].split(" ");
+				for(var count = 1; count < 4; count++)
+				{
+					var slash_split = parsed_vertex[count].split("/");
+					faces_normals.push(slash_split[2]-1);
+				}
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<faces_normals.length;i++)
+		{
+			if((faces_normals[i]) == 0)
+			{
+				flag =0;
+			}
+			else
+			{
+				flag = faces_normals[i];
+			}
+			final_vertices_normals.push(vertices_normals[(flag*3)+0]);
+			final_vertices_normals.push(vertices_normals[(flag*3)+1]);
+			final_vertices_normals.push(vertices_normals[(flag*3)+2]);
+		}
+		
+		
+		
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices_normals), gl.STATIC_DRAW);
+        pyramidVertexNormalPositionBuffer3.itemSize = 3;
+        pyramidVertexNormalPositionBuffer3.numItems = vertexcount;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+	
+		pyramidVertex_Kd_PositionBuffer3 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertex_Kd_PositionBuffer3);
+		
+		var temp_store1;
+		var temp_store2;
+		var temp_store3;
+		
+		for(var i =0;i<lineText_mtl.length;i++)
+		{
+			var line_content = lineText_mtl[i][1];
+			if( line_content == 'K' && lineText_mtl[i][2] =='d')
+			{
+				var parsed_vertex=lineText_mtl[i].split(" ");
+				temp_store1= parsed_vertex[1];
+				temp_store2= parsed_vertex[2];
+				temp_store3= parsed_vertex[3];
+				Kd_val_count++;
+				
+			}
+		
+		}
+		
+		
+		
+		for(var i =0;i<facecount*3;i++)
+		{
+			kd_val.push(temp_store1);
+			kd_val.push(temp_store2);
+			kd_val.push(temp_store3);
+		
+		}
+		
+		
+		
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(kd_val), gl.STATIC_DRAW);
+        pyramidVertex_Kd_PositionBuffer3.itemSize = 3;
+        pyramidVertex_Kd_PositionBuffer3.numItems = facecount*3;
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+	
+	     
+    }
+	
+	
+	function initBuffers4() {
+        vertexBuffer_cube = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer_cube);
+		
+		var final_vertices = [
+            // Front face
+            -1.0, -1.0,  1.0,
+             1.0, -1.0,  1.0,
+             1.0,  1.0,  1.0,
+            -1.0,  1.0,  1.0,
+            // Back face
+            -1.0, -1.0, -1.0,
+            -1.0,  1.0, -1.0,
+             1.0,  1.0, -1.0,
+             1.0, -1.0, -1.0,
+            // Top face
+            -1.0,  1.0, -1.0,
+            -1.0,  1.0,  1.0,
+             1.0,  1.0,  1.0,
+             1.0,  1.0, -1.0,
+            // Bottom face
+            -1.0, -1.0, -1.0,
+             1.0, -1.0, -1.0,
+             1.0, -1.0,  1.0,
+            -1.0, -1.0,  1.0,
+            // Right face
+             1.0, -1.0, -1.0,
+             1.0,  1.0, -1.0,
+             1.0,  1.0,  1.0,
+             1.0, -1.0,  1.0,
+            // Left face
+            -1.0, -1.0, -1.0,
+            -1.0, -1.0,  1.0,
+            -1.0,  1.0,  1.0,
+            -1.0,  1.0, -1.0
+        ];
+		
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices), gl.STATIC_DRAW);
+        vertexBuffer_cube.itemSize = 3;
+        vertexBuffer_cube.numItems = 24;
+
+    
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+		
+		
+		
+	//-------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------
+	
+	     
+    }
+
+	
+	
+	function initBuffers_BB() {
+        vertexBuffer_head_BB = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer_head_BB);
+		
+		
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(final_vertices_head), gl.STATIC_DRAW);
+        vertexBuffer_head_BB.itemSize = 3;
+        vertexBuffer_head_BB.numItems = 24;
+
+		vertexBuffer_rabbit_BB = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer_rabbit_BB);
+		
+		
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexBuffer_rabbit_BB), gl.STATIC_DRAW);
+        vertexBuffer_head_BB.itemSize = 3;
+        vertexBuffer_head_BB.numItems = 24;
+		
+		vertexBuffer_cap_BB = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer_cap_BB);
+		
+		
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexBuffer_cap_BB), gl.STATIC_DRAW);
+		
+        vertexBuffer_cap_BB.itemSize = 3;
+        vertexBuffer_cap_BB.numItems = 24;
+    
+		tick();
+    }
+
+	
+
+		var final_vertices_head = [
+            		
+		head_min_x,head_max_y,head_min_z,
+		head_min_x,head_max_y,head_max_z,
+		
+		head_min_x,head_max_y,head_min_z,
+		head_max_x,head_max_y,head_min_z,
+		
+		head_min_x,head_max_y,head_max_z,
+		head_max_x,head_max_y,head_max_z,
+		
+		head_max_x,head_max_y,head_max_z,
+		head_max_x,head_max_y,head_min_z,
+		
+		head_min_x,head_min_y,head_min_z,
+		head_min_x,head_max_y,head_min_z,
+		
+		head_min_x,head_min_y,head_max_z,
+		head_min_x,head_max_y,head_max_z,
+		
+		head_min_x,head_min_y,head_max_z,
+		head_min_x,head_min_y,head_min_z,
+		
+		head_min_x,head_min_y,head_min_z,
+		head_max_x,head_min_y,head_min_z,
+		
+		head_max_x,head_min_y,head_min_z,
+		head_max_x,head_max_y,head_min_z,
+		
+		head_max_x,head_max_y,head_max_z,
+		head_max_x,head_min_y,head_max_z,
+		
+		head_min_x,head_min_y,head_max_z,
+		head_max_x,head_min_y,head_max_z,
+		
+		head_max_x,head_min_y,head_max_z,
+		head_max_x,head_min_y,head_min_z,
+		
+		];
+		
+		var final_vertices_rabbit = [
+		rabbit_min_x,rabbit_max_y,rabbit_min_z,
+		rabbit_min_x,rabbit_max_y,rabbit_max_z,
+		
+		rabbit_min_x,rabbit_max_y,rabbit_min_z,
+		rabbit_max_x,rabbit_max_y,rabbit_min_z,
+		
+		rabbit_min_x,rabbit_max_y,rabbit_max_z,
+		rabbit_max_x,rabbit_max_y,rabbit_max_z,
+		
+		rabbit_max_x,rabbit_max_y,rabbit_max_z,
+		rabbit_max_x,rabbit_max_y,rabbit_min_z,
+		
+		rabbit_min_x,rabbit_min_y,rabbit_min_z,
+		rabbit_min_x,rabbit_max_y,rabbit_min_z,
+		
+		rabbit_min_x,rabbit_min_y,rabbit_max_z,
+		rabbit_min_x,rabbit_max_y,rabbit_max_z,
+		
+		rabbit_min_x,rabbit_min_y,rabbit_max_z,
+		rabbit_min_x,rabbit_min_y,rabbit_min_z,
+		
+		rabbit_min_x,rabbit_min_y,rabbit_min_z,
+		rabbit_max_x,rabbit_min_y,rabbit_min_z,
+		
+		rabbit_max_x,rabbit_min_y,rabbit_min_z,
+		rabbit_max_x,rabbit_max_y,rabbit_min_z,
+		
+		rabbit_max_x,rabbit_max_y,rabbit_max_z,
+		rabbit_max_x,rabbit_min_y,rabbit_max_z,
+		
+		rabbit_min_x,rabbit_min_y,rabbit_max_z,
+		rabbit_max_x,rabbit_min_y,rabbit_max_z,
+		
+		rabbit_max_x,rabbit_min_y,rabbit_max_z,
+		rabbit_max_x,rabbit_min_y,rabbit_min_z
+		];
+		
+		
+		var final_vertices_cap = [
+		cap_min_x,cap_max_y,cap_min_z,
+		cap_min_x,cap_max_y,cap_max_z,
+		cap_min_x,cap_max_y,cap_min_z,
+		cap_max_x,cap_max_y,cap_min_z,
+		cap_min_x,cap_max_y,cap_max_z,
+		cap_max_x,cap_max_y,cap_max_z,
+		cap_max_x,cap_max_y,cap_max_z,
+		cap_max_x,cap_max_y,cap_min_z,
+		cap_min_x,cap_min_y,cap_min_z,
+		cap_min_x,cap_max_y,cap_min_z,
+		cap_min_x,cap_min_y,cap_max_z,
+		cap_min_x,cap_max_y,cap_max_z,
+		cap_min_x,cap_min_y,cap_max_z,
+		cap_min_x,cap_min_y,cap_min_z,
+		cap_min_x,cap_min_y,cap_min_z,
+		cap_max_x,cap_min_y,cap_min_z,
+		cap_max_x,cap_min_y,cap_min_z,
+		cap_max_x,cap_max_y,cap_min_z,
+		cap_max_x,cap_max_y,cap_max_z,
+		cap_max_x,cap_min_y,cap_max_z,
+		cap_min_x,cap_min_y,cap_max_z,
+		cap_max_x,cap_min_y,cap_max_z,
+		cap_max_x,cap_min_y,cap_max_z,
+		cap_max_x,cap_min_y,cap_min_z
+		];
+		   
+	
+	
+    var rPyramid = 0;
+    var rCube = 0;
+	var z1 = 0.25;
+	var x1 = 0.25;
+	var y1 = 0.25;
+	
+	var z2 = 0.25*5.0;
+	var x2 = 0.25*5.0;
+	var y2 = 0.25*5.0;
+	
+	var z3 = 0.25*2.0;
+	var x3 = 0.25*2.0;
+	var y3 = 0.25*2.0;
+	
+	var z4 = 0.25;
+	var x4 = 0.25;
+	var y4 = 0.25;
+		
+	var bracket = -10;
+	var rotate = 0;
+	
+	var frameCount = 0;
+	var elapsedTime = 0;
+	var last_time = 0;
+	var fps ;
+	
+    function drawScene() {
+	
+		   var now = new Date().getTime();
+		   frameCount++;
+		
+		   elapsedTime += (now - last_time);
+
+		   last_time = now;
+			
+			
+		   if(elapsedTime >=1000) {
+				
+			   fps = frameCount;
+			   frameCount = 0;
+			   
+			   elapsedTime -= 1000;
+			   
+			   document.getElementById("test").innerHTML = "number of frames per second is "+fps;
+			  		  
+			   
+			   }
+			
+		   
+		   
+	   
+	   
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		
+		
+		shaderProgram.flag_color=gl.getUniformLocation(shaderProgram,'colorflag');
+		shaderProgram.flag_color1=gl.getUniformLocation(shaderProgram,'colorflag1');
+		
+		gl.uniform1i(shaderProgram.flag_color,0);
+		gl.uniform1i(shaderProgram.flag_color1,0);
+		
+		
+		
+        mat4.perspective(pMatrix,45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+        mat4.identity(mvMatrix);
+
+        mat4.translate(mvMatrix,mvMatrix, [x1, y1, bracket]);
+		mat4.scale(mvMatrix,mvMatrix,[z1,z1,z1]);
+		
+ 
+        mat4.rotate(mvMatrix,mvMatrix, degToRad(rotate), [0, 1, 0]);
+
+		mat3.normalFromMat4(nMatrix, mvMatrix);
+		
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, pyramidVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexTextureCoordBuffer);
+        gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, cubeVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexNormalPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexNormalPositionAttribute, pyramidVertexNormalPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertex_Kd_PositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertex_KdAttribute, pyramidVertex_Kd_PositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, crateTextures);
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+
+        setMatrixUniforms();
+        gl.drawArrays(gl.TRIANGLES, 0, pyramidVertexPositionBuffer.numItems);
+
+      
+		
+		
+		mat4.perspective(pMatrix,120, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+        mat4.identity(mvMatrix);
+
+        mat4.translate(mvMatrix,mvMatrix, [x2+1, y2, bracket]);
+		mat4.scale(mvMatrix,mvMatrix,[z2,z2,z2]);
+ 
+        mat4.rotate(mvMatrix,mvMatrix, degToRad(rotate), [0, 1, 0]);
+
+		mat3.normalFromMat4(nMatrix, mvMatrix);
+		
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexPositionBuffer2);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, pyramidVertexPositionBuffer2.itemSize, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexTextureCoordBuffer2);
+        gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, cubeVertexTextureCoordBuffer2.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexNormalPositionBuffer2);
+        gl.vertexAttribPointer(shaderProgram.vertexNormalPositionAttribute, pyramidVertexNormalPositionBuffer2.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertex_Kd_PositionBuffer2);
+        gl.vertexAttribPointer(shaderProgram.vertex_KdAttribute, pyramidVertex_Kd_PositionBuffer2.itemSize, gl.FLOAT, false, 0, 0);
+
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, crateTextures2);
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+
+        setMatrixUniforms();
+        gl.drawArrays(gl.TRIANGLES, 0, pyramidVertexPositionBuffer2.numItems);
+		
+		//------------------------------------------------------------------------------
+		//------------------------------------------------------------------------------
+		
+		mat4.perspective(pMatrix,120, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+        mat4.identity(mvMatrix);
+
+        mat4.translate(mvMatrix,mvMatrix, [x3-3, y3, bracket]);
+		mat4.scale(mvMatrix,mvMatrix,[z3,z3,z3]);
+ 
+        mat4.rotate(mvMatrix,mvMatrix, degToRad(rotate), [0, 1, 0]);
+
+		mat3.normalFromMat4(nMatrix, mvMatrix);
+		
+        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexPositionBuffer3);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, pyramidVertexPositionBuffer3.itemSize, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexTextureCoordBuffer3);
+        gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, cubeVertexTextureCoordBuffer3.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexNormalPositionBuffer3);
+        gl.vertexAttribPointer(shaderProgram.vertexNormalPositionAttribute, pyramidVertexNormalPositionBuffer3.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertex_Kd_PositionBuffer3);
+        gl.vertexAttribPointer(shaderProgram.vertex_KdAttribute, pyramidVertex_Kd_PositionBuffer3.itemSize, gl.FLOAT, false, 0, 0);
+
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, crateTextures3);
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+
+        setMatrixUniforms();
+        gl.drawArrays(gl.TRIANGLES, 0, pyramidVertexPositionBuffer3.numItems);
+		gl.flush();
+		
+		
+		
+		
+		gl.uniform1i(shaderProgram.flag_color,1);
+		gl.uniform1i(shaderProgram.flag_color1,1);
+		
+		mat4.perspective(pMatrix,120, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+        mat4.identity(mvMatrix);
+
+        mat4.translate(mvMatrix,mvMatrix, [x4+1, y4, bracket]);
+		mat4.scale(mvMatrix,mvMatrix,[z4,z4,z4]);
+ 
+        mat4.rotate(mvMatrix,mvMatrix, degToRad(rotate), [0, 1, 0]);
+
+		mat3.normalFromMat4(nMatrix, mvMatrix);
+		
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer_cube);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, vertexBuffer_cube.itemSize, gl.FLOAT, false, 0, 0);
+		
+		
+        gl.drawArrays(gl.LINE_STRIP, 0, vertexBuffer_cube.numItems);
+
+    }
+	last_time = new Date().getTime();
+	
+
+
+    var lastTime = 0;
+	
+
+    function animate() {
+        var timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+
+            rPyramid += (90 * elapsed) / 1000.0;
+            rCube -= (75 * elapsed) / 1000.0;
+        }
+        lastTime = timeNow;
+	document.onkeydown = function(e) {
+    switch (e.keyCode) {
+        case 37:
+            x1-=0.05;
+			x2-=0.05;
+			x3-=0.05;
+            break;
+        case 38:
+            y1+=0.05;
+			y2+=0.05;
+			y3+=0.05;
+            break;
+       	case 39:
+            x1+=0.05;
+			x2+=0.05;
+			x3+=0.05;
+            break;
+		case 40:
+            y1-=0.05;
+			y2-=0.05;
+			y3-=0.05;
+            break;
+        case 88:
+            z1-=0.05;
+			z2-=0.05;
+			z3-=0.05;
+            break;
+		case 90:
+            z1+=0.05;
+			z2+=0.05;
+			z3+=0.05;
+            break;
+		case 81:
+            rotate-=0.5;
+            break;
+		case 87:
+            rotate+=0.5;
+            break;
+		case 219:
+            bracket+=1;
+            break;
+		case 221:
+            bracket-=1;
+            break;
+    }
+	};
+		
+	}
+    
+
+
+    function tick() {
+        requestAnimFrame(tick);
+        drawScene();
+		animate();
+    }
+
+	
+	function compareValues()
+	{
+		var new_x_max;
+		var new_x_min;
+		var new_y_max;
+		var new_y_min;
+		var new_z_max;
+		var new_z_min;
+		
+		if(((rabbit_max_x+x2)*z2) > ((cap_max_x+x2)*z2))
+		{
+				new_x_max = ((rabbit_max_x+x2)*z2);
+				new_x_min = ((cap_max_x+x2)*z2);
+		}
+		else if(((rabbit_max_x+x2)*z2) < ((cap_max_x+x2)*z2))
+		{
+				new_x_max = ((cap_max_x+x2)*z2);
+				new_x_min = ((rabbit_max_x+x2)*z2);
+		}
+		
+		if(((rabbit_max_y+y2)*z2) > ((cap_max_y+y2)*z2))
+		{
+				new_y_max = ((rabbit_max_y+y2)*z2);
+				new_y_min = ((cap_max_y+y2)*z2);
+		}
+		else if(((rabbit_max_y+y2)*z2) < ((cap_max_y+y2)*z2))
+		{
+				new_y_max = ((cap_max_y+y2)*z2);
+				new_y_min = ((rabbit_max_y+y2)*z2);
+		}
+		
+		if(((rabbit_max_z+bracket)*z3) > ((cap_max_z+bracket)*z3))
+		{
+				new_z_max = ((rabbit_max_z+bracket)*z3);
+				new_z_min = ((cap_max_z+bracket)*z3);
+		}
+		else if(((rabbit_max_z+bracket)*z3) < ((cap_max_z+bracket)*z3))
+		{
+				new_z_max = ((cap_max_z+bracket)*z3);
+				new_z_min = ((rabbit_max_z+bracket)*z3);
+		}
+	
+	
+		if(new_x_max>head_max_x)
+		{
+			head_max_x = new_x_max;
+		}
+		
+		if(new_x_min < head_min_x)
+		{
+			head_min_x = new_x_min;
+		}
+				
+		if(new_y_max>head_max_y)
+		{
+			head_max_y=new_y_max;
+		}
+		if(new_y_min<head_min_y)
+		{
+			head_min_y=new_y_min;
+		}
+		if(new_z_max>head_max_z)
+		{
+			head_max_z = new_z_max;
+		}
+		if(new_z_min < head_min_z)
+		{
+			head_min_z = new_z_min;
+		}
+	
+		initBuffers_BB();
+	}
+	
+	
+	
+	
+    function webGLStart() {
+	
+	
+        var canvas = document.getElementById("Assignment3");
+		
+		var link = window.location.href;
+		var pathfile = link.split('=')[1];
+		
+		var path_file_hire = 'obj/'+pathfile;
+		
+		readHierarchyFile(path_file_hire);
+		
+		
+		
+		var HirarFile = localStorage.getItem('HierarchyText');
+		var fileText = HirarFile.split("\n");
+		
+		var file1 = fileText[0];
+		var file2 = fileText[4];
+		var file3 = fileText[8];
+		
+		
+		
+		
+		//------------------------Reading File1---------------------------------
+		file1 = 'obj/'+file1;
+		readTextFile(file1);
+		var mtlfile;
+						
+		var splitText = localStorage.getItem('alText')
+		var lineText = splitText.split('\n');
+		for(var i =0;i<lineText.length;i++)
+		{
+			var filesplit = lineText[i].split(" ");
+			if(filesplit[0] == "mtllib")
+			{
+				mtlfile = filesplit[1];
+			}
+		
+		}
+		
+		mtlfile = 'obj/'+mtlfile;
+		readMTLFile(mtlfile);
+		
+		var splitText_mtl = localStorage.getItem('MTLText')
+		var lineText_mtl = splitText_mtl.split('\n');
+		
+		var texture_image;
+		for(var i =0;i<lineText_mtl.length;i++)
+		{
+			var filesplit = lineText_mtl[i].split(" ");
+		
+			if(filesplit[0] == "	map_Kd")
+			{
+				
+				texture_image = filesplit[1];
+			}
+		
+		}
+		texture_image='textures/'+texture_image;
+		localStorage.setItem('texture_file',texture_image);
+		
+		
+		//------------------------Reading File2---------------------------------
+		
+		file2 = 'obj/'+file2;
+		readTextFile2(file2);
+		var mtlfile2;
+						
+		var splitText2 = localStorage.getItem('alText2')
+		var lineText2 = splitText2.split('\n');
+		for(var i =0;i<lineText2.length;i++)
+		{
+			var filesplit2 = lineText2[i].split(" ");
+			if(filesplit2[0] == "mtllib")
+			{
+				mtlfile2 = filesplit2[1];
+			}
+		
+		}
+		mtlfile2 = 'obj/'+mtlfile2;
+		readMTLFile2(mtlfile2);
+		
+		var splitText_mtl2 = localStorage.getItem('MTLText2')
+		var lineText_mtl2 = splitText_mtl2.split('\n');
+		
+		var texture_image2;
+		for(var i =0;i<lineText_mtl2.length;i++)
+		{
+			var filesplit2 = lineText_mtl2[i].split(" ");
+		
+			if(filesplit2[0] == "	map_Kd")
+			{
+				
+				texture_image2 = filesplit2[1];
+			}
+		
+		}
+		texture_image2 = 'textures/'+texture_image2;
+		localStorage.setItem('texture_file2',texture_image2);
+		
+		//------------------------Reading File3---------------------------------
+		file3 = 'obj/'+file3;
+		readTextFile3(file3);
+		var mtlfile3;
+						
+		var splitText3 = localStorage.getItem('alText3')
+		var lineText3 = splitText3.split('\n');
+		for(var i =0;i<lineText3.length;i++)
+		{
+			var filesplit3 = lineText3[i].split(" ");
+			if(filesplit3[0] == "mtllib")
+			{
+				mtlfile3 = filesplit3[1];
+			}
+		
+		}
+		mtlfile3 = 'obj/'+mtlfile3;
+		readMTLFile3(mtlfile3);
+		
+		var splitText_mtl3 = localStorage.getItem('MTLText3')
+		var lineText_mtl3 = splitText_mtl3.split('\n');
+		
+		var texture_image3;
+		for(var i =0;i<lineText_mtl3.length;i++)
+		{
+			var filesplit3 = lineText_mtl3[i].split(" ");
+		
+			if(filesplit3[0] == "	map_Kd")
+			{
+				
+				texture_image3 = filesplit3[1];
+			}
+		
+		}
+		texture_image3 = 'textures/'+texture_image3;
+		localStorage.setItem('texture_file3',texture_image3);
+		
+		
+        initGL(canvas);
+        initShaders()
+		initTexture();	
+        initBuffers();
+		initTexture2();
+		initBuffers2();
+		initTexture3();
+		initBuffers3();
+		initBuffers4();
+		
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+
+		compareValues();
+        
+    }
+
+</script>
+
+
+</head>
+
+
+<body onload="webGLStart();">
+    
+
+    <canvas id="Assignment3" style="border: none;" width="500" height="500"></canvas>
+	
+	<div id="abc"><p id="test"></p>
+	</div>
+    <style>
+	#abc
+	{
+	position:absolute;
+		left:13px;
+		top:0px;
+		color: red;
+	
+	
+	}
+	</style>
+	<br/>
+    
+</body>
+
+</html>
